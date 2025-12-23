@@ -1,0 +1,54 @@
+/* General Page */
+body {
+    background: #f4f6fb;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Top Bar */
+.top-bar {
+    background: linear-gradient(90deg, #4b2aad, #6a5acd);
+    color: white;
+}
+
+.app-title {
+    margin: 0;
+    font-weight: bold;
+}
+
+/* Main Card */
+.main-card {
+    border-radius: 16px;
+    max-width: 600px;
+    margin: auto;
+    background: white;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: #4b2aad;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #3a1f8f;
+}
+
+.btn-secondary {
+    background-color: #6a5acd;
+    border: none;
+}
+
+.btn-secondary:hover {
+    background-color: #5949b0;
+}
+
+/* Inputs */
+.form-control, .form-select {
+    border-radius: 10px;
+}
+
+/* Subtitle */
+#appSubtitle {
+    color: #4b2aad;
+    font-weight: 600;
+}
