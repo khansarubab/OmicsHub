@@ -4,196 +4,157 @@
 <meta charset="UTF-8">
 <title>OmicsHub</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-    body { background: #f4f6f9; }
-    .main-card { border-radius: 16px; }
     #voiceCameraWrapper { display: flex; gap: 10px; }
     #voiceCameraWrapper button { flex: 1; }
 </style>
 </head>
-
 <body>
-
-<!-- 🔹 Top Bar -->
 <div class="top-bar d-flex justify-content-between align-items-center px-4 py-3 bg-light shadow-sm">
     <h3 class="app-title">🧬 OmicsHub</h3>
-    <select id="languageSelect" class="form-select w-auto">
-        <option value="en">English</option>
-        <option value="ur">اردو</option>
-        <option value="ru">Roman Urdu</option>
-    </select>
 </div>
 
-<!-- 🔹 Main App -->
-<div class="container mt-5 mb-5">
+<div class="container mt-5">
     <div class="card main-card shadow p-4">
+        <h4 class="text-center mb-4">Integrated Multi-Omics Explorer</h4>
 
-        <h4 class="text-center mb-4" id="appSubtitle">
-            Integrated Multi-Omics Explorer
-        </h4>
-
-        <!-- Uploads -->
         <div class="mb-3">
             <label class="form-label">Upload Omics File (CSV)</label>
             <input type="file" id="omicsFile" class="form-control">
         </div>
 
         <div class="mb-3">
-            <label class="form-label">Upload Genomics / Proteomics File</label>
-            <input type="file" id="genomicsFile" class="form-control">
+            <label class="form-label">Enter Gene / Protein Name(s)</label>
+            <input type="text" id="geneInput" class="form-control" placeholder="TP53, BRCA1">
         </div>
 
-        <!-- Voice / Camera -->
-        <div class="mb-3" id="voiceCameraWrapper">
-            <button class="btn btn-secondary" id="voiceBtn">🎤 Voice Input</button>
-            <button class="btn btn-secondary" id="cameraBtn">📷 Camera</button>
-            <input type="file" id="imageUpload" accept="image/*" hidden>
-        </div>
-
-        <!-- Gene Input -->
-        <div class="mb-3">
-            <label class="form-label">Enter Gene / Protein Names</label>
-            <input type="text" id="geneInput" class="form-control"
-                   placeholder="TP53, BRCA1, EGFR">
-        </div>
-
-        <!-- Analyze -->
         <div class="d-grid mb-4">
-            <button class="btn btn-primary btn-lg" id="analyzeBtn">
-                Analyze Omics Data
-            </button>
+            <button class="btn btn-primary btn-lg" id="analyzeBtn">Analyze Omics Data</button>
         </div>
 
-        <!-- 🧬 Gene Results -->
-        <h5>Gene Results</h5>
+        <h5>Gene Results:</h5>
         <table class="table table-bordered">
-            <thead class="table-light">
-                <tr>
-                    <th>Gene</th>
-                    <th>Status</th>
-                </tr>
+            <thead>
+                <tr><th>Gene</th><th>Status</th></tr>
             </thead>
-            <tbody id="geneResultsBody"></tbody>
+            <tbody id="resultsBody"></tbody>
         </table>
 
-        <!-- 🧠 Pathway Results -->
-        <h5 class="mt-4">Pathway Enrichment</h5>
+        <h5>Pathway Enrichment:</h5>
         <table class="table table-bordered">
-            <thead class="table-light">
-                <tr>
-                    <th>Pathway</th>
-                    <th>p-value</th>
-                </tr>
+            <thead>
+                <tr><th>Pathway</th><th>p-value</th></tr>
             </thead>
-            <tbody id="pathwayResultsBody"></tbody>
+            <tbody id="pathwayBody"></tbody>
         </table>
 
-        <!-- Chart -->
-        <canvas id="resultsChart" class="mt-4"></canvas>
-
+        <canvas id="resultsChart"></canvas>
+        <button class="btn btn-danger mt-3" id="downloadPdfBtn">📄 Download PDF Report</button>
     </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+let chart = null;
+let lastResultData = null;
 
-    const languageSelect = document.getElementById("languageSelect");
-    const subtitle = document.getElementById("appSubtitle");
-    const voiceBtn = document.getElementById("voiceBtn");
-    const analyzeBtn = document.getElementById("analyzeBtn");
+document.getElementById("analyzeBtn").addEventListener("click", async () => {
+    const geneInput = document.getElementById("geneInput").value.trim();
+    if (!geneInput) { alert("Please enter gene names"); return; }
 
-    const geneInput = document.getElementById("geneInput");
-    const geneResultsBody = document.getElementById("geneResultsBody");
-    const pathwayResultsBody = document.getElementById("pathwayResultsBody");
-    const resultsChartCanvas = document.getElementById("resultsChart");
+    let csvData = "";
+    if (document.getElementById("omicsFile").files[0]) {
+        csvData = await document.getElementById("omicsFile").files[0].text();
+    }
 
-    let chart = null;
+    const genes = geneInput.split(",").map(g => g.trim()).filter(Boolean);
+    const found_genes = genes.map(g => ({
+        gene: g,
+        status: csvData.toLowerCase().includes(g.toLowerCase()) ? "✅ Found" : "❌ Not Found"
+    }));
 
-    /* 🌍 Language */
-    const translations = {
-        en: { subtitle: "Integrated Multi-Omics Explorer", analyze: "Analyze Omics Data" },
-        ur: { subtitle: "ملٹی اوومکس ڈیٹا ایکسپلورر", analyze: "تجزیہ کریں" },
-        ru: { subtitle: "Integrated Multi-Omics Explorer", analyze: "Analyze" }
-    };
+    // Example pathway enrichment (replace with real backend API later)
+    const pathway_enrichment = [
+        { pathway: "Cell Cycle Regulation", pval: "1.20e-4" },
+        { pathway: "DNA Repair Pathway", pval: "4.50e-3" },
+        { pathway: "Cancer Signaling", pval: "1.80e-3" }
+    ];
 
-    languageSelect.addEventListener("change", () => {
-        const lang = languageSelect.value;
-        subtitle.innerText = translations[lang].subtitle;
-        analyzeBtn.innerText = translations[lang].analyze;
+    lastResultData = { found_genes, pathway_enrichment };
+
+    // Update Gene table
+    const resultsBody = document.getElementById("resultsBody");
+    resultsBody.innerHTML = "";
+    found_genes.forEach(item => {
+        const row = resultsBody.insertRow();
+        row.insertCell(0).innerText = item.gene;
+        row.insertCell(1).innerText = item.status;
     });
 
-    /* 🔍 Analyze */
-    analyzeBtn.addEventListener("click", async () => {
-
-        const genes = geneInput.value
-            .split(",")
-            .map(g => g.trim())
-            .filter(Boolean);
-
-        if (genes.length === 0) {
-            alert("Please enter gene names");
-            return;
-        }
-
-        geneResultsBody.innerHTML = "";
-        pathwayResultsBody.innerHTML = "";
-
-        /* 🧬 Gene Table (frontend) */
-        genes.forEach(gene => {
-            const row = geneResultsBody.insertRow();
-            row.insertCell(0).innerText = gene;
-            row.insertCell(1).innerText = "✅ Found";
-        });
-
-        try {
-            const response = await fetch("/api/analyze", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ gene: geneInput.value })
-            });
-
-            const data = await response.json();
-
-            /* 🧠 Pathway Table */
-            data.pathways.forEach(p => {
-                const row = pathwayResultsBody.insertRow();
-                row.insertCell(0).innerText = p.name;
-                row.insertCell(1).innerText = p.p_value.toExponential(2);
-            });
-
-            /* 📊 Chart */
-            if (chart) chart.destroy();
-            chart = new Chart(resultsChartCanvas, {
-                type: "bar",
-                data: {
-                    labels: data.pathways.map(p => p.name),
-                    datasets: [{
-                        label: "-log10(p-value)",
-                        data: data.pathways.map(p => -Math.log10(p.p_value))
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
-
-            alert(data.message);
-
-        } catch (err) {
-            alert("Backend error: " + err.message);
-        }
+    // Update Pathway table
+    const pathwayBody = document.getElementById("pathwayBody");
+    pathwayBody.innerHTML = "";
+    pathway_enrichment.forEach(item => {
+        const row = pathwayBody.insertRow();
+        row.insertCell(0).innerText = item.pathway;
+        row.insertCell(1).innerText = item.pval;
     });
 
+    // Chart
+    if (chart) chart.destroy();
+    const ctx = document.getElementById("resultsChart").getContext("2d");
+    chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: found_genes.map(d => d.gene),
+            datasets: [{ 
+                label: "Gene Status", 
+                data: found_genes.map(d => d.status === "✅ Found" ? 1 : 0),
+                backgroundColor: found_genes.map(d => d.status === "✅ Found" ? "#4caf50" : "#f44336")
+            }]
+        },
+        options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+});
+
+// PDF Download
+document.getElementById("downloadPdfBtn").addEventListener("click", () => {
+    if (!lastResultData) { alert("No results to download"); return; }
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+
+    pdf.setFontSize(18);
+    pdf.text("OmicsHub - Analysis Report", 14, 20);
+    pdf.setFontSize(12);
+    pdf.text(`Date: ${new Date().toLocaleString()}`, 14, 30);
+
+    let y = 45;
+    pdf.text("Gene Analysis Results:", 14, y);
+    y += 10;
+    lastResultData.found_genes.forEach(item => {
+        pdf.text(`${item.gene} : ${item.status}`, 16, y);
+        y += 8;
+    });
+
+    y += 10;
+    pdf.text("Pathway Enrichment:", 14, y);
+    y += 10;
+    lastResultData.pathway_enrichment.forEach(item => {
+        pdf.text(`${item.pathway} : ${item.pval}`, 16, y);
+        y += 8;
+    });
+
+    // Add chart as image
+    const chartImage = document.getElementById("resultsChart").toDataURL("image/png");
+    pdf.addPage();
+    pdf.text("Visualization", 14, 20);
+    pdf.addImage(chartImage, "PNG", 15, 30, 180, 100);
+
+    pdf.save("OmicsHub_Report.pdf");
 });
 </script>
-
 </body>
 </html>
