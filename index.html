@@ -136,8 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             // 🔹 Use Render backend public URL here
-            const backendURL = "https://omicshub-backend.onrender.com/analyze";
-            const response = await fetch(backendURL, { method: "POST", body: formData });
+            const backendURL = "https://omics-hub.vercel.app/api/analyze";const response = await fetch(backendURL, { method: "POST", body: formData });
             const data = await response.json();
 
             data.found_genes.forEach(item => {
