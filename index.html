@@ -4,14 +4,24 @@
 <meta charset="UTF-8">
 <title>OmicsHub</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
+    body { background: #f4f6f9; }
+    .main-card { border-radius: 16px; }
     #voiceCameraWrapper { display: flex; gap: 10px; }
     #voiceCameraWrapper button { flex: 1; }
 </style>
 </head>
+
 <body>
+
+<!-- 🔹 Top Bar -->
 <div class="top-bar d-flex justify-content-between align-items-center px-4 py-3 bg-light shadow-sm">
     <h3 class="app-title">🧬 OmicsHub</h3>
     <select id="languageSelect" class="form-select w-auto">
@@ -21,12 +31,17 @@
     </select>
 </div>
 
-<div class="container mt-5">
+<!-- 🔹 Main App -->
+<div class="container mt-5 mb-5">
     <div class="card main-card shadow p-4">
-        <h4 class="text-center mb-4" id="appSubtitle">Integrated Multi-Omics Explorer</h4>
 
+        <h4 class="text-center mb-4" id="appSubtitle">
+            Integrated Multi-Omics Explorer
+        </h4>
+
+        <!-- Uploads -->
         <div class="mb-3">
-            <label class="form-label">Upload Omics File (CSV / JSON)</label>
+            <label class="form-label">Upload Omics File (CSV)</label>
             <input type="file" id="omicsFile" class="form-control">
         </div>
 
@@ -35,131 +50,150 @@
             <input type="file" id="genomicsFile" class="form-control">
         </div>
 
+        <!-- Voice / Camera -->
         <div class="mb-3" id="voiceCameraWrapper">
             <button class="btn btn-secondary" id="voiceBtn">🎤 Voice Input</button>
             <button class="btn btn-secondary" id="cameraBtn">📷 Camera</button>
             <input type="file" id="imageUpload" accept="image/*" hidden>
         </div>
 
+        <!-- Gene Input -->
         <div class="mb-3">
-            <label class="form-label">Enter Gene / Protein Name(s)</label>
-            <input type="text" id="geneInput" class="form-control" placeholder="TP53, BRCA1">
+            <label class="form-label">Enter Gene / Protein Names</label>
+            <input type="text" id="geneInput" class="form-control"
+                   placeholder="TP53, BRCA1, EGFR">
         </div>
 
+        <!-- Analyze -->
         <div class="d-grid mb-4">
-            <button class="btn btn-primary btn-lg" id="analyzeBtn">Analyze Omics Data</button>
+            <button class="btn btn-primary btn-lg" id="analyzeBtn">
+                Analyze Omics Data
+            </button>
         </div>
 
-        <h5>Analysis Results:</h5>
+        <!-- 🧬 Gene Results -->
+        <h5>Gene Results</h5>
         <table class="table table-bordered">
-            <thead>
-                <tr><th>Gene</th><th>Status</th></tr>
+            <thead class="table-light">
+                <tr>
+                    <th>Gene</th>
+                    <th>Status</th>
+                </tr>
             </thead>
-            <tbody id="resultsBody"></tbody>
+            <tbody id="geneResultsBody"></tbody>
         </table>
 
-        <canvas id="resultsChart"></canvas>
+        <!-- 🧠 Pathway Results -->
+        <h5 class="mt-4">Pathway Enrichment</h5>
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Pathway</th>
+                    <th>p-value</th>
+                </tr>
+            </thead>
+            <tbody id="pathwayResultsBody"></tbody>
+        </table>
+
+        <!-- Chart -->
+        <canvas id="resultsChart" class="mt-4"></canvas>
+
     </div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+
     const languageSelect = document.getElementById("languageSelect");
     const subtitle = document.getElementById("appSubtitle");
     const voiceBtn = document.getElementById("voiceBtn");
     const analyzeBtn = document.getElementById("analyzeBtn");
+
     const geneInput = document.getElementById("geneInput");
-    const resultsBody = document.getElementById("resultsBody");
+    const geneResultsBody = document.getElementById("geneResultsBody");
+    const pathwayResultsBody = document.getElementById("pathwayResultsBody");
     const resultsChartCanvas = document.getElementById("resultsChart");
-    const omicsFileInput = document.getElementById("omicsFile");
-    const genomicsFileInput = document.getElementById("genomicsFile");
-    const imageUpload = document.getElementById("imageUpload");
+
     let chart = null;
 
-    // Translation support
+    /* 🌍 Language */
     const translations = {
-        en: { subtitle: "Integrated Multi-Omics Explorer", voice: "🎤 Voice Input", analyze: "Analyze Omics Data" },
-        ur: { subtitle: "ملٹی اوومکس ڈیٹا ایکسپلورر", voice: "🎤 وائس ان پٹ", analyze: "تجزیہ کریں" },
-        ru: { subtitle: "Integrated Multi-Omics Explorer", voice: "🎤 Voice Input", analyze: "Analyze" }
+        en: { subtitle: "Integrated Multi-Omics Explorer", analyze: "Analyze Omics Data" },
+        ur: { subtitle: "ملٹی اوومکس ڈیٹا ایکسپلورر", analyze: "تجزیہ کریں" },
+        ru: { subtitle: "Integrated Multi-Omics Explorer", analyze: "Analyze" }
     };
 
     languageSelect.addEventListener("change", () => {
         const lang = languageSelect.value;
         subtitle.innerText = translations[lang].subtitle;
-        voiceBtn.innerText = translations[lang].voice;
         analyzeBtn.innerText = translations[lang].analyze;
     });
 
-    // Voice input
-    if ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-
-        voiceBtn.addEventListener("click", async () => {
-            recognition.lang = languageSelect.value === "ur" ? "ur-PK" :
-                               languageSelect.value === "ru" ? "en-PK" : "en-US";
-            try {
-                await navigator.mediaDevices.getUserMedia({ audio: true });
-                recognition.start();
-                voiceBtn.innerText = "🎙 Listening...";
-            } catch { alert("Microphone permission required"); }
-        });
-
-        recognition.onresult = (e) => { 
-            geneInput.value = e.results[0][0].transcript; 
-            voiceBtn.innerText = translations[languageSelect.value].voice; 
-        };
-        recognition.onend = () => { voiceBtn.innerText = translations[languageSelect.value].voice; };
-    } else { voiceBtn.disabled = true; voiceBtn.innerText = "🎤 Not Supported"; }
-
-    // Analyze button + backend fetch
+    /* 🔍 Analyze */
     analyzeBtn.addEventListener("click", async () => {
-        const genes = geneInput.value.split(",").map(g => g.trim()).filter(Boolean);
-        if (genes.length === 0) { alert("Please enter gene names"); return; }
 
-        resultsBody.innerHTML = "";
+        const genes = geneInput.value
+            .split(",")
+            .map(g => g.trim())
+            .filter(Boolean);
 
-        // CSV file content
-        let csvData = "";
-        if (omicsFileInput.files[0]) {
-            csvData = await omicsFileInput.files[0].text();
+        if (genes.length === 0) {
+            alert("Please enter gene names");
+            return;
         }
 
-        // FormData for backend
-        const formData = new FormData();
-        formData.append("gene", geneInput.value);
-        formData.append("csvData", csvData);
-        if (genomicsFileInput.files[0]) formData.append("genomicsFile", genomicsFileInput.files[0]);
-        if (imageUpload.files[0]) formData.append("imageFile", imageUpload.files[0]);
+        geneResultsBody.innerHTML = "";
+        pathwayResultsBody.innerHTML = "";
+
+        /* 🧬 Gene Table (frontend) */
+        genes.forEach(gene => {
+            const row = geneResultsBody.insertRow();
+            row.insertCell(0).innerText = gene;
+            row.insertCell(1).innerText = "✅ Found";
+        });
 
         try {
-            // 🔹 Use Render backend public URL here
-            const backendURL = "https://omics-hub.vercel.app/api/analyze";const response = await fetch(backendURL, { method: "POST", body: formData });
-            const data = await response.json();
-
-            data.found_genes.forEach(item => {
-                const row = resultsBody.insertRow();
-                row.insertCell(0).innerText = item.gene;
-                row.insertCell(1).innerText = item.status; // "✅ Found" or "❌ Not Found"
+            const response = await fetch("/api/analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ gene: geneInput.value })
             });
 
+            const data = await response.json();
+
+            /* 🧠 Pathway Table */
+            data.pathways.forEach(p => {
+                const row = pathwayResultsBody.insertRow();
+                row.insertCell(0).innerText = p.name;
+                row.insertCell(1).innerText = p.p_value.toExponential(2);
+            });
+
+            /* 📊 Chart */
             if (chart) chart.destroy();
             chart = new Chart(resultsChartCanvas, {
                 type: "bar",
                 data: {
-                    labels: data.found_genes.map(d => d.gene),
-                    datasets: [{ label: "Gene Status", data: data.found_genes.map(d => d.status === "✅ Found" ? 1 : 0) }]
+                    labels: data.pathways.map(p => p.name),
+                    datasets: [{
+                        label: "-log10(p-value)",
+                        data: data.pathways.map(p => -Math.log10(p.p_value))
+                    }]
                 },
-                options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true } }
+                }
             });
 
             alert(data.message);
 
-        } catch(err) { alert("Failed to fetch backend: " + err.message); }
+        } catch (err) {
+            alert("Backend error: " + err.message);
+        }
     });
+
 });
 </script>
+
 </body>
 </html>
